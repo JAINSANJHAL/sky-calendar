@@ -43,7 +43,7 @@ body {
   left: 0;
   width: 736px;
   height: 56px;
-  z-index: 10;
+  z-index: 30;
   pointer-events: none;
 }
 
@@ -885,12 +885,11 @@ async function animatePrevMonth() {
   isAnimating = false;
 }
 
-// ─── Forward navigation — page-tear (falls DOWN like a real desk calendar) ───
+// ─── Forward navigation — page-tear (hinges at top, falls with gravity) ──────
 async function animateNextMonth() {
   if (isAnimating) return;
   isAnimating = true;
 
-  // Respect prefers-reduced-motion: instant swap
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     curMonth++;
     if (curMonth > 12) { curMonth = 1; curYear++; }
@@ -899,125 +898,111 @@ async function animateNextMonth() {
     return;
   }
 
-  const card = document.getElementById('calendar-card');
-  const app  = document.getElementById('app');
+  const card    = document.getElementById('calendar-card');
+  const binding = document.getElementById('spiral-binding');
 
-  // Lock height so body flex-centering doesn't jump if row count changes
-  app.style.height = app.offsetHeight + 'px';
-
-  // ── Step 1: Enable 3-D perspective on parent so rotateX looks correct ─────
-  // perspective-origin: top center = vanishing point at the spiral binding
-  app.style.perspective       = '1200px';
-  app.style.perspectiveOrigin = 'top center';
-
-  // ── Step 2: Snapshot the old card ─────────────────────────────────────────
+  // ── 1. Clone the current card as a visual snapshot ────────────────────────
+  const rect = card.getBoundingClientRect();
   const snapshot = card.cloneNode(true);
-  snapshot.removeAttribute('id');
-  Object.assign(snapshot.style, {
-    position:        'absolute',
-    top:             '0',
-    left:            '0',
-    width:           card.offsetWidth  + 'px',
-    height:          card.offsetHeight + 'px',
-    zIndex:          '5',          // below binding (z:10), above new card (z:4)
-    transformOrigin: 'top center', // pivot at the spiral rings — page folds here
-    pointerEvents:   'none',
-    willChange:      'transform, opacity',
-    backfaceVisibility: 'hidden',
-  });
-  app.appendChild(snapshot);
+  snapshot.style.cssText = `
+    position: absolute;
+    top: ${rect.top}px;
+    left: ${rect.left}px;
+    width: ${rect.width}px;
+    height: ${rect.height}px;
+    margin: 0;
+    z-index: 20;
+    pointer-events: none;
+    transform-origin: top center;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    border-radius: 8px;
+    overflow: hidden;
+  `;
 
-  // ── Step 3: Stage new card behind snapshot ─────────────────────────────────
-  // Slight translateY(-20px) + scale(0.97) — will ease up into position
-  card.style.zIndex    = '4';
-  card.style.opacity   = '0';
-  card.style.transform = 'translateY(-20px) scale(0.97)';
+  // ── 2. CRITICAL: perspective wrapper directly contains the snapshot ────────
+  // Fixed elements ignore ancestor perspective; this wrapper IS the context
+  const perspWrap = document.createElement('div');
+  perspWrap.style.cssText = `
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    perspective: 900px;
+    perspective-origin: top center;
+    pointer-events: none;
+    z-index: 20;
+  `;
+  document.body.appendChild(perspWrap);
+  perspWrap.appendChild(snapshot);
 
-  // ── Step 4: Render new month + run grab-peel concurrently ─────────────────
+  // ── 3. Hide real card, render new month behind ────────────────────────────
+  card.style.visibility = 'hidden';
   curMonth++;
   if (curMonth > 12) { curMonth = 1; curYear++; }
+  await renderCalendar();
+  card.style.visibility = '';
+  card.style.opacity    = '0';
 
-  const grabAnim = snapshot.animate([
-    {
-      transform: 'rotateX(0deg) translateY(0) rotate(0deg) scale(1)',
-      boxShadow: '3px 4px 9.8px rgba(90,85,75,0.57)',
-      opacity:   1,
-    },
-    {
-      transform: 'rotateX(8deg) translateY(-4px) rotate(0deg) scale(1.01)',
-      boxShadow: '6px 12px 28px rgba(90,85,75,0.45)',
-      opacity:   1,
-    },
-  ], { duration: 100, easing: 'ease-out', fill: 'forwards' });
-
-  await Promise.all([grabAnim.finished, renderCalendar()]);
-  grabAnim.commitStyles();
-  grabAnim.cancel();
-
-  // ── Step 5: Page falls — rotateX pivots at the rings, gravity pulls down ──
-  // rotateX goes 8→90deg (page folds flat), translateY slides it down off-card,
-  // slight Z-rotate (left side tears free first), opacity fades last 25%
+  // ── 4. Page tear — hinges at TOP, falls downward with gravity ─────────────
   const tearAnim = snapshot.animate([
     {
       offset:    0,
-      transform: 'rotateX(8deg) translateY(-4px) rotate(0deg) scale(1.01)',
-      opacity:   1,
-    },
-    {
-      offset:    0.40,
-      transform: 'rotateX(40deg) translateY(10vh) rotate(2deg) scale(1)',
+      transform: 'rotateX(0deg) rotate(0deg)',
       opacity:   1,
       easing:    'ease-in',
     },
     {
-      offset:    0.70,
-      transform: 'rotateX(75deg) translateY(35vh) rotate(3.5deg)',
+      offset:    0.12,
+      transform: 'rotateX(6deg) rotate(0.5deg)',
+      opacity:   1,
+      easing:    'ease-in',
+    },
+    {
+      offset:    0.35,
+      transform: 'rotateX(35deg) rotate(2deg)',
+      opacity:   1,
+      easing:    'cubic-bezier(0.4, 0, 1, 1)',
+    },
+    {
+      offset:    0.65,
+      transform: 'rotateX(68deg) rotate(3deg)',
       opacity:   1,
     },
     {
       offset:    0.80,
-      transform: 'rotateX(82deg) translateY(45vh) rotate(4deg)',
-      opacity:   1,
+      transform: 'rotateX(82deg) rotate(3.5deg)',
+      opacity:   0.7,
     },
     {
       offset:    1,
-      transform: 'rotateX(90deg) translateY(60vh) rotate(4deg)',
+      transform: 'rotateX(95deg) rotate(4deg)',
       opacity:   0,
     },
   ], {
-    duration: 500,
-    easing:   'cubic-bezier(0.4, 0.0, 0.8, 1)',
+    duration: 580,
     fill:     'forwards',
   });
 
-  // ── Step 6: New card eases up from behind as old page falls away ───────────
-  await delay(150);
-
+  // ── 5. New month fades up from slightly below ─────────────────────────────
+  await delay(80);
   const revealAnim = card.animate([
-    { opacity: '0', transform: 'translateY(-20px) scale(0.97)' },
-    { opacity: '1', transform: 'translateY(0)     scale(1)'    },
+    { opacity: 0, transform: 'translateY(8px) scale(0.99)' },
+    { opacity: 1, transform: 'translateY(0)   scale(1)'    },
   ], {
-    duration: 400,
+    duration: 420,
     easing:   'ease-out',
     fill:     'forwards',
   });
 
-  // ── Step 7: Wait for everything to finish ─────────────────────────────────
+  // ── 6. Wait for both ──────────────────────────────────────────────────────
   await Promise.all([tearAnim.finished, revealAnim.finished]);
 
-  // ── Step 8: Cleanup ───────────────────────────────────────────────────────
+  // ── 7. Cleanup ────────────────────────────────────────────────────────────
   revealAnim.commitStyles();
   revealAnim.cancel();
-  card.style.zIndex    = '';
+  perspWrap.remove();
   card.style.opacity   = '';
   card.style.transform = '';
-  snapshot.remove();
-
-  // Remove perspective and height lock from app
-  app.style.perspective       = '';
-  app.style.perspectiveOrigin = '';
-  app.style.height            = '';
-
   applyScale();
   isAnimating = false;
 }
