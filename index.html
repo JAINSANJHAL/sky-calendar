@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sky Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Peddana&family=Pixelify+Sans&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  background-color: #87ceeb;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 70% 30%, rgba(255,255,255,0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 20% 60%, rgba(255,255,255,0.3) 0%, transparent 50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: 'Peddana', serif;
+}
+
+/* ── WRAPPER ── */
+#app {
+  position: relative;
+  width: 736px;
+  flex-shrink: 0;
+}
+
+/* ── SPIRAL BINDING ── */
+#spiral-binding {
+  position: absolute;
+  top: -14px;
+  left: 0;
+  width: 736px;
+  height: 56px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ── CALENDAR CARD ── */
+#calendar-card {
+  position: relative;
+  width: 736px;
+  height: 759px; /* updated by JS each month */
+  background: #fffcf7;
+  border: 1px solid #e7ddcb;
+  border-radius: 8px;
+  box-shadow: 3px 4px 9.8px rgba(90,85,75,0.57);
+  overflow: hidden;
+}
+
+/* ── PIXEL FLOWER ── */
+#pixel-flower-svg {
+  position: absolute;
+  top: 48px;
+  left: 34px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* ── MONTH / NAV ── */
+#month-nav {
+  position: absolute;
+  top: 43px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-arrow {
+  font-family: 'Peddana', serif;
+  font-size: 28px;
+  color: #baac94;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.15s;
+  user-select: none;
+}
+.nav-arrow:hover { color: #5c5241; }
+
+#month-heading {
+  font-family: 'Peddana', serif;
+  font-size: 51px;
+  font-weight: 400;
+  color: #5c5241;
+  letter-spacing: -1.02px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── DAY HEADERS ── */
+#day-headers {
+  position: absolute;
+  top: 127px;
+  left: 0;
+  width: 736px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid #e7ddcb;
+}
+
+.day-header {
+  font-family: 'Peddana', serif;
+  font-size: 16px;
+  color: #baac94;
+  text-align: center;
+  padding: 0 0 6px;
+  border-right: 1px solid #e7ddcb;
+}
+
+/* ── CALENDAR GRID ── */
+#calendar-grid {
+  position: absolute;
+  top: 149px;
+  left: 0;
+  width: 736px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid #e7ddcb;
+  border-left: 1px solid #e7ddcb;
+}
+
+.cal-cell {
+  height: 120px;
+  border-right: 1px solid #e7ddcb;
+  border-bottom: 1px solid #e7ddcb;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cal-cell.empty-pad {
+  cursor: default;
+  background: #fffcf7;
+}
+
+.cal-cell.future {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cal-cell.today {
+  box-shadow: inset 0 0 0 2px #c8a87a;
+  background: #fffdf0;
+}
+
+/* Day number */
+.day-num {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-family: 'Pixelify Sans', monospace;
+  font-size: 16px;
+  color: #6b5e47;
+  line-height: normal;
+  z-index: 2;
+}
+
+.cal-cell.filled .day-num {
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Sky unseen label */
+.sky-unseen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Peddana', serif;
+  font-size: 11px;
+  color: #d4c9b4;
+  pointer-events: none;
+}
+
+/* Photo fill */
+.cell-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* ── COLOR STRIP ── */
+#color-strip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 734px;
+  height: 13px;
+  overflow: visible;
+}
+#color-strip > div {
+  position: absolute;
+}
+
+/* ── BACKDROP ── */
+#backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.2);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+}
+#backdrop.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* ── BOTTOM SHEET ── */
+#bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  width: min(480px, 100vw);
+  background: #fffcf7;
+  border-radius: 16px 16px 0 0;
+  border: 1px solid #e7ddcb;
+  box-shadow: 0 -4px 24px rgba(90,85,75,0.18);
+  z-index: 200;
+  padding: 0 0 40px;
+  transition: transform 0.3s ease-out;
+}
+#bottom-sheet.open {
+  transform: translateX(-50%) translateY(0);
+}
+
+.sheet-handle {
+  width: 32px;
+  height: 4px;
+  background: #e7ddcb;
+  border-radius: 2px;
+  margin: 12px auto 0;
+}
+
+.sheet-date {
+  font-family: 'Peddana', serif;
+  font-size: 24px;
+  color: #5c5241;
+  text-align: center;
+  margin-top: 14px;
+}
+
+.sheet-body {
+  padding: 16px 20px 0;
+}
+
+/* Empty day: tap zone */
+.sheet-tap-zone {
+  border: 1.5px dashed #e7ddcb;
+  border-radius: 8px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: 'Peddana', serif;
+  font-size: 14px;
+  color: #baac94;
+}
+.sheet-tap-zone:active { opacity: 0.75; }
+
+/* Filled day: photo preview */
+.sheet-photo-preview {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 8px;
+  display: block;
+}
+
+.sheet-replace {
+  font-family: 'Peddana', serif;
+  font-size: 13px;
+  color: #baac94;
+  text-align: center;
+  margin-top: 10px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  display: block;
+  width: 100%;
+}
+.sheet-replace:hover { color: #5c5241; }
+
+#file-input {
+  display: none;
+}
+
+/* ── MOBILE SCALE ── */
+@media (max-width: 760px) {
+  #app {
+    width: 100vw;
+    transform-origin: top center;
+  }
+  body { padding: 20px 0 40px; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<div id="backdrop"></div>
+
+<div id="app">
+  <!-- Spiral binding SVG (overhangs top of card) -->
+  <svg id="spiral-binding" viewBox="0 0 736 56" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="wireGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#a89880"/>
+        <stop offset="50%" stop-color="#d4c8b0"/>
+        <stop offset="100%" stop-color="#a89880"/>
+      </linearGradient>
+      <linearGradient id="loopGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#e0d4bc"/>
+        <stop offset="40%" stop-color="#c8baa0"/>
+        <stop offset="100%" stop-color="#a89880"/>
+      </linearGradient>
+      <filter id="loopShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="rgba(90,80,60,0.3)"/>
+      </filter>
+    </defs>
+    <!-- 22 binding clips, each ~33px apart, starting at x=8 -->
+    <!-- Each clip: wires from y=14 to y=55 (go through card top), loop arc at y=6 to y=30 -->
+  </svg>
+
+  <div id="calendar-card">
+    <!-- Pixel flower SVG (exact Figma coordinates, card-relative) -->
+    <svg id="pixel-flower-svg" width="110" height="75" viewBox="34 48 110 75" xmlns="http://www.w3.org/2000/svg">
+      <!-- LARGE FLOWER (pixel size 4.571) -->
+      <!-- pink petals -->
+      <rect x="53.29" y="49" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="48.71" y="53.57" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="53.29" y="53.57" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="57.86" y="53.57" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="44.14" y="58.14" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="48.71" y="58.14" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="53.29" y="58.14" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="57.86" y="58.14" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="62.43" y="58.14" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="39.57" y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="44.14" y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="48.71" y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <!-- yellow center -->
+      <rect x="53.29" y="62.71" width="4.571" height="4.571" fill="#f7c200"/>
+      <!-- pink petals continued -->
+      <rect x="57.86" y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="62.43" y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="67"    y="62.71" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="44.14" y="67.29" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="48.71" y="67.29" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="53.29" y="67.29" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="57.86" y="67.29" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="62.43" y="67.29" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="48.71" y="71.86" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="53.29" y="71.86" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="57.86" y="71.86" width="4.571" height="4.571" fill="#fb7bad"/>
+      <rect x="53.29" y="76.43" width="4.571" height="4.571" fill="#fb7bad"/>
+      <!-- green stem + leaves -->
+      <rect x="48.71" y="76.43" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="44.14" y="81"    width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="48.71" y="81"    width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="44.14" y="85.57" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="44.14" y="90.14" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="44.14" y="94.71" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="48.71" y="94.71" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="48.71" y="99.29" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="57.86" y="99.29" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="62.43" y="99.29" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="67"    y="99.29" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="67"    y="94.71" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="67"    y="90.14" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="57.86" y="103.86" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="48.71" y="103.86" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="39.57" y="103.86" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="35"    y="103.86" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="35"    y="99.29"  width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="39.57" y="108.43" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="44.14" y="108.43" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="48.71" y="108.43" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="53.29" y="108.43" width="4.571" height="4.571" fill="#c0d780"/>
+      <rect x="57.86" y="108.43" width="4.571" height="4.571" fill="#c0d780"/>
+
+      <!-- SMALL FLOWER (pixel size 2.929) -->
+      <!-- pink -->
+      <rect x="86.79" y="72"    width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="86.79" y="74.93" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="83.86" y="74.93" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="89.71" y="74.93" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="86.79" y="77.86" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="83.86" y="77.86" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="80.93" y="77.86" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="89.71" y="77.86" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="92.64" y="77.86" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="78"    y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="80.93" y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="83.86" y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <!-- yellow center small -->
+      <rect x="86.79" y="80.79" width="2.929" height="2.929" fill="#f7c200"/>
+      <rect x="89.71" y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="92.64" y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="95.57" y="80.79" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="80.93" y="83.71" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="83.86" y="83.71" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="86.79" y="83.71" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="89.71" y="83.71" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="92.64" y="83.71" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="83.86" y="86.64" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="86.79" y="86.64" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="89.71" y="86.64" width="2.929" height="2.929" fill="#fb7bad"/>
+      <rect x="86.79" y="89.57" width="2.929" height="2.929" fill="#fb7bad"/>
+      <!-- green stem small -->
+      <rect x="89.71" y="89.57"  width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="89.71" y="92.5"   width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="92.64" y="92.5"   width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="92.64" y="95.43"  width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="92.64" y="98.36"  width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="78"    y="98.36"  width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="92.64" y="101.29" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="89.71" y="101.29" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="78"    y="101.29" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="89.71" y="104.21" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="83.86" y="104.21" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="80.93" y="104.21" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="78"    y="104.21" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="98.5"  y="104.21" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="89.71" y="107.14" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="83.86" y="107.14" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="95.57" y="107.14" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="98.5"  y="107.14" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="89.71" y="110.07" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="92.64" y="110.07" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="86.79" y="110.07" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="83.86" y="110.07" width="2.929" height="2.929" fill="#c0d780"/>
+      <rect x="95.57" y="110.07" width="2.929" height="2.929" fill="#c0d780"/>
+    </svg>
+
+    <!-- Month navigation -->
+    <div id="month-nav">
+      <button class="nav-arrow" id="prev-month">&#8249;</button>
+      <h1 id="month-heading">April 2026</h1>
+      <button class="nav-arrow" id="next-month">&#8250;</button>
+    </div>
+
+    <!-- Day headers -->
+    <div id="day-headers">
+      <div class="day-header">SUN</div>
+      <div class="day-header">MON</div>
+      <div class="day-header">TUE</div>
+      <div class="day-header">WED</div>
+      <div class="day-header">THU</div>
+      <div class="day-header">FRI</div>
+      <div class="day-header">SAT</div>
+    </div>
+
+    <!-- Calendar grid (populated by JS) -->
+    <div id="calendar-grid"></div>
+
+    <!-- Color strip — exact segments from Figma node 3:367 -->
+    <div id="color-strip">
+      <!-- red base segments -->
+      <div style="left:0;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <div style="left:13px;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <!-- pink/yellow/purple -->
+      <div style="left:26px;top:0;width:11px;height:13px;background:#f779ae"></div>
+      <div style="left:37px;top:0;width:21px;height:10px;background:#f9c100"></div>
+      <div style="left:37px;top:10px;width:21px;height:3px;background:#ceace3"></div>
+      <!-- pink overlays -->
+      <div style="left:67px;top:-4px;width:13px;height:13px;background:#f779ae"></div>
+      <div style="left:89px;top:9px;width:13px;height:13px;background:#f779ae"></div>
+      <div style="left:102px;top:-4px;width:13px;height:13px;background:#3b873d"></div>
+      <div style="left:102px;top:9px;width:13px;height:13px;background:#f779ae"></div>
+      <div style="left:115px;top:-4px;width:13px;height:13px;background:#f779ae"></div>
+      <!-- red block -->
+      <div style="left:128px;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <div style="left:141px;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <div style="left:154px;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <div style="left:167px;top:0;width:13px;height:13px;background:#e92f10"></div>
+      <!-- cream/taupe bed87d -->
+      <div style="left:180px;top:9px;width:13px;height:13px;background:#bed87d"></div>
+      <!-- light blue -->
+      <div style="left:232px;top:0;width:9px;height:13px;background:#b4d7f0"></div>
+      <!-- red -->
+      <div style="left:269px;top:0;width:10px;height:13px;background:#e92f10"></div>
+      <!-- light blue overlap -->
+      <div style="left:292px;top:-4px;width:13px;height:13px;background:#b4d7f0"></div>
+      <!-- red wide -->
+      <div style="left:294px;top:0;width:30px;height:13px;background:#e92f10"></div>
+      <!-- teal -->
+      <div style="left:335px;top:0;width:11px;height:13px;background:#09b6c2"></div>
+      <!-- green-yellow -->
+      <div style="left:376px;top:0;width:28px;height:13px;background:#bed580"></div>
+      <div style="left:404px;top:0;width:9px;height:13px;background:#348c3e"></div>
+      <div style="left:431px;top:0;width:43px;height:13px;background:#bed580"></div>
+      <!-- orange -->
+      <div style="left:492px;top:0;width:9px;height:13px;background:#f57010"></div>
+      <div style="left:501px;top:0;width:43px;height:13px;background:#bed580"></div>
+      <div style="left:544px;top:9px;width:13px;height:13px;background:#348c3e"></div>
+      <div style="left:557px;top:0;width:37px;height:13px;background:#f57010"></div>
+      <div style="left:594px;top:0;width:22px;height:13px;background:#bed580"></div>
+      <div style="left:638px;top:0;width:97px;height:13px;background:#bed580"></div>
+    </div>
+  </div><!-- /calendar-card -->
+</div><!-- /app -->
+
+<!-- Bottom sheet -->
+<div id="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-date" id="sheet-date"></div>
+  <div class="sheet-body" id="sheet-body"></div>
+</div>
+
+<input type="file" id="file-input" accept="image/*">
+
+<script>
+// ─── Asset URLs from Figma (binding clips) ───────────────────────────────────
+const FIGMA_LOOP_MASK  = 'https://www.figma.com/api/mcp/asset/dd59dce0-257d-41cf-8567-7c65b3073853';
+const FIGMA_LOOP_FILL  = 'https://www.figma.com/api/mcp/asset/5dcc47e6-947f-4194-9855-7748434bef50';
+const FIGMA_WIRE_MASK  = 'https://www.figma.com/api/mcp/asset/52da0196-da39-4ecc-bb7c-4eff9ed5e2ba';
+const FIGMA_WIRE_L     = 'https://www.figma.com/api/mcp/asset/a511785e-f820-4071-ba29-18a9633bcb2d';
+const FIGMA_WIRE_R     = 'https://www.figma.com/api/mcp/asset/e5fd9cc6-76a9-4f9e-aceb-ef3ac7213562';
+
+// ─── Build spiral binding SVG ─────────────────────────────────────────────────
+function buildSpiral() {
+  const svg = document.getElementById('spiral-binding');
+  // 21 clips spanning ~700px; each clip 26.735px wide, 33px step
+  // SVG is 56px tall; card starts at y=14 in SVG coords
+  // Wires run full SVG height (y=0 to 55) — above y=14 shows above card
+  const count = 21;
+  const startX = 8;
+  const step   = 33;
+  const loopW  = 26.735;
+  const loopH  = 16.639;
+  const ly     = 29.19; // loop top from clip top (= from SVG top)
+
+  let markup = '';
+  for (let i = 0; i < count; i++) {
+    const cx = startX + i * step;
+    // wires from very top to bottom of SVG
+    markup += `<rect x="${(cx+5.83).toFixed(2)}" y="0" width="3.932" height="56" rx="1.8" fill="url(#wireGrad)"/>`;
+    markup += `<rect x="${(cx+15.91).toFixed(2)}" y="0" width="3.932" height="56" rx="1.8" fill="url(#wireGrad)"/>`;
+    // loop arc — open-bottom D-shape
+    const r = loopW / 2;
+    const lx = cx;
+    markup += `<path d="M${(lx+1.5).toFixed(2)} ${(ly+loopH).toFixed(2)} L${(lx+1.5).toFixed(2)} ${(ly+r).toFixed(2)} A${(r-1.5).toFixed(2)} ${(r-1.5).toFixed(2)} 0 0 1 ${(lx+loopW-1.5).toFixed(2)} ${(ly+r).toFixed(2)} L${(lx+loopW-1.5).toFixed(2)} ${(ly+loopH).toFixed(2)}" stroke="url(#loopGrad)" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#loopShadow)"/>`;
+    // shine highlight
+    markup += `<path d="M${(lx+4).toFixed(2)} ${(ly+loopH-1).toFixed(2)} L${(lx+4).toFixed(2)} ${(ly+r+3).toFixed(2)} A${(r-4).toFixed(2)} ${(r-4).toFixed(2)} 0 0 1 ${(lx+loopW-4).toFixed(2)} ${(ly+r+3).toFixed(2)} L${(lx+loopW-4).toFixed(2)} ${(ly+loopH-1).toFixed(2)}" stroke="rgba(255,255,255,0.4)" stroke-width="1.2" fill="none"/>`;
+  }
+  svg.insertAdjacentHTML('beforeend', markup);
+}
+
+// ─── IndexedDB ───────────────────────────────────────────────────────────────
+const DB_NAME    = 'SkyCalendar';
+const DB_VERSION = 1;
+const STORE      = 'photos';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(STORE);
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function savePhoto(dateKey, blob) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).put(blob, dateKey);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function getPhoto(dateKey) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(dateKey);
+    req.onsuccess = e => resolve(e.target.result || null);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function getAllPhotosForMonth(year, month) {
+  // Returns {dateKey: objectURL} map
+  // All requests are issued synchronously within one transaction to prevent early commit
+  const db     = await openDB();
+  const prefix = `${year}-${String(month).padStart(2,'0')}-`;
+
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE, 'readonly');
+    const store = tx.objectStore(STORE);
+    const result = {};
+
+    const keysReq = store.getAllKeys();
+    keysReq.onerror = e => reject(e.target.error);
+    keysReq.onsuccess = e => {
+      const keys = e.target.result.filter(k => k.startsWith(prefix));
+      if (keys.length === 0) { resolve(result); return; }
+
+      let pending = keys.length;
+      for (const key of keys) {
+        const req = store.get(key);
+        req.onerror = ev => reject(ev.target.error);
+        req.onsuccess = ev => {
+          const blob = ev.target.result;
+          if (blob) result[key] = URL.createObjectURL(blob);
+          pending--;
+          if (pending === 0) resolve(result);
+        };
+      }
+    };
+  });
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const today       = new Date();
+let   curYear     = today.getFullYear();
+let   curMonth    = today.getMonth() + 1; // 1-based
+let   photoURLs   = {}; // dateKey → objectURL
+let   activeDate  = null;
+
+// ─── Calendar rendering ───────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+const DAY_NAMES   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const SHORT_MONTH = ['Jan','Feb','Mar','Apr','May','Jun',
+                     'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function daysInMonth(y, m) {
+  return new Date(y, m, 0).getDate();
+}
+
+function firstDayOfMonth(y, m) {
+  return new Date(y, m - 1, 1).getDay(); // 0=Sun
+}
+
+function dateKey(y, m, d) {
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+async function renderCalendar() {
+  // Update heading
+  document.getElementById('month-heading').textContent =
+    `${MONTH_NAMES[curMonth - 1]} ${curYear}`;
+
+  // Fetch all photos for this month
+  // First revoke old object URLs
+  Object.values(photoURLs).forEach(u => URL.revokeObjectURL(u));
+  photoURLs = await getAllPhotosForMonth(curYear, curMonth);
+
+  const grid   = document.getElementById('calendar-grid');
+  grid.innerHTML = '';
+
+  const firstDay  = firstDayOfMonth(curYear, curMonth);
+  const numDays   = daysInMonth(curYear, curMonth);
+  const todayKey  = dateKey(today.getFullYear(), today.getMonth()+1, today.getDate());
+
+  // Leading empty pads
+  for (let i = 0; i < firstDay; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell empty-pad';
+    grid.appendChild(cell);
+  }
+
+  // Day cells
+  for (let d = 1; d <= numDays; d++) {
+    const key   = dateKey(curYear, curMonth, d);
+    const isToday  = key === todayKey;
+    const isPast   = key < todayKey;
+    const isFuture = key > todayKey;
+    const hasPhoto = !!photoURLs[key];
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    cell.dataset.key = key;
+    cell.dataset.day = d;
+
+    if (isFuture) {
+      cell.classList.add('future');
+    } else if (isToday) {
+      cell.classList.add('today');
+    }
+
+    if (hasPhoto) {
+      cell.classList.add('filled');
+      const img = document.createElement('img');
+      img.className = 'cell-photo';
+      img.src = photoURLs[key];
+      img.draggable = false;
+      cell.appendChild(img);
+    } else if (isPast) {
+      const label = document.createElement('div');
+      label.className = 'sky-unseen';
+      label.textContent = 'sky unseen';
+      cell.appendChild(label);
+    }
+
+    // Day number
+    const numEl = document.createElement('div');
+    numEl.className = 'day-num';
+    numEl.textContent = String(d).padStart(2, '0');
+    cell.appendChild(numEl);
+
+    // Click handler (past + today only)
+    if (!isFuture) {
+      cell.addEventListener('click', () => openSheet(key, d));
+    }
+
+    grid.appendChild(cell);
+  }
+
+  // Trailing empty pads to complete the last row
+  const totalCells = firstDay + numDays;
+  const remainder  = totalCells % 7;
+  if (remainder !== 0) {
+    const trailing = 7 - remainder;
+    for (let i = 0; i < trailing; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell empty-pad';
+      grid.appendChild(cell);
+    }
+  }
+
+  // Set card height: header (149) + grid rows + color strip (13)
+  const rows = Math.ceil((firstDay + numDays) / 7);
+  // Each row is 120px; shared borders collapse: total grid height = rows*120 - (rows-1)
+  const gridHeight = rows * 120 - (rows - 1);
+  document.getElementById('calendar-card').style.height = (149 + gridHeight + 13) + 'px';
+
+  if (!isAnimating) applyScale();
+}
+
+// ─── Bottom sheet ─────────────────────────────────────────────────────────────
+function openSheet(key, day) {
+  activeDate = key;
+
+  // Date label: "April 25"
+  document.getElementById('sheet-date').textContent =
+    `${MONTH_NAMES[curMonth - 1]} ${day}`;
+
+  renderSheetBody(key);
+
+  document.getElementById('backdrop').classList.add('visible');
+  document.getElementById('bottom-sheet').classList.add('open');
+}
+
+function renderSheetBody(key) {
+  const body = document.getElementById('sheet-body');
+  body.innerHTML = '';
+
+  if (photoURLs[key]) {
+    // Show preview + replace link
+    const img = document.createElement('img');
+    img.className = 'sheet-photo-preview';
+    img.src = photoURLs[key];
+    body.appendChild(img);
+
+    const btn = document.createElement('button');
+    btn.className = 'sheet-replace';
+    btn.textContent = 'replace photo';
+    btn.addEventListener('click', () => document.getElementById('file-input').click());
+    body.appendChild(btn);
+  } else {
+    // Tap zone
+    const zone = document.createElement('div');
+    zone.className = 'sheet-tap-zone';
+    zone.textContent = 'tap to choose a sky photo';
+    zone.addEventListener('click', () => document.getElementById('file-input').click());
+    body.appendChild(zone);
+  }
+}
+
+function closeSheet() {
+  document.getElementById('backdrop').classList.remove('visible');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  activeDate = null;
+}
+
+// ─── File input ───────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file || !activeDate) return;
+  e.target.value = '';
+
+  const key  = activeDate;
+  const blob = file;
+
+  await savePhoto(key, blob);
+
+  // Revoke old URL if any
+  if (photoURLs[key]) URL.revokeObjectURL(photoURLs[key]);
+  photoURLs[key] = URL.createObjectURL(blob);
+
+  // Update cell immediately
+  const cell = document.querySelector(`.cal-cell[data-key="${key}"]`);
+  if (cell) {
+    cell.classList.add('filled');
+    // Remove sky-unseen label
+    const lbl = cell.querySelector('.sky-unseen');
+    if (lbl) lbl.remove();
+    // Remove old photo if any
+    const old = cell.querySelector('.cell-photo');
+    if (old) old.remove();
+    // Add new photo
+    const img = document.createElement('img');
+    img.className = 'cell-photo';
+    img.src = photoURLs[key];
+    img.draggable = false;
+    cell.insertBefore(img, cell.firstChild);
+    // Make day number white
+    const numEl = cell.querySelector('.day-num');
+    if (numEl) numEl.style.color = '#fff';
+  }
+
+  // Close sheet with slight delay for visual feedback
+  closeSheet();
+});
+
+// ─── Animation state & helpers ────────────────────────────────────────────────
+let isAnimating = false;
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ─── Backward navigation — simple fade ───────────────────────────────────────
+async function animatePrevMonth() {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  const card = document.getElementById('calendar-card');
+
+  // Fade out current month
+  const fadeOut = card.animate(
+    [{ opacity: 1 }, { opacity: 0 }],
+    { duration: 150, easing: 'ease-out', fill: 'forwards' }
+  );
+  await fadeOut.finished;
+  fadeOut.commitStyles();
+  fadeOut.cancel();
+
+  curMonth--;
+  if (curMonth < 1) { curMonth = 12; curYear--; }
+  await renderCalendar();
+
+  card.style.opacity = '0'; // hold hidden while render paints
+
+  // Fade in new month
+  const fadeIn = card.animate(
+    [{ opacity: 0 }, { opacity: 1 }],
+    { duration: 200, easing: 'ease-in', fill: 'forwards' }
+  );
+  await fadeIn.finished;
+  fadeIn.commitStyles();
+  fadeIn.cancel();
+  card.style.opacity = '';
+
+  isAnimating = false;
+}
+
+// ─── Forward navigation — page-tear animation ────────────────────────────────
+async function animateNextMonth() {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  // Respect prefers-reduced-motion
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    curMonth++;
+    if (curMonth > 12) { curMonth = 1; curYear++; }
+    await renderCalendar();
+    isAnimating = false;
+    return;
+  }
+
+  const card = document.getElementById('calendar-card');
+  const app  = document.getElementById('app');
+
+  // Lock #app height so body flex-centering doesn't shift the snapshot
+  // if new month has a different row count
+  app.style.height = app.offsetHeight + 'px';
+
+  // ── Step 1: Snapshot the old card ─────────────────────────────────────────
+  const snapshot = card.cloneNode(true);
+  snapshot.removeAttribute('id');
+  Object.assign(snapshot.style, {
+    position:        'absolute',
+    top:             '0',
+    left:            '0',
+    width:           card.offsetWidth  + 'px',
+    height:          card.offsetHeight + 'px',
+    zIndex:          '5',           // below binding (z:10), above new card
+    transformOrigin: 'top center',  // pivot point for curl/rotate
+    pointerEvents:   'none',
+    willChange:      'transform, box-shadow',
+  });
+  app.appendChild(snapshot);
+
+  // ── Step 2: Hide the new card (sits behind snapshot) ──────────────────────
+  card.style.opacity   = '0';
+  card.style.transform = 'translateY(20px) scale(0.98)';
+
+  // ── Step 3: Lift + render new month concurrently ──────────────────────────
+  curMonth++;
+  if (curMonth > 12) { curMonth = 1; curYear++; }
+
+  const liftAnim = snapshot.animate([
+    {
+      transform:  'translateY(0)',
+      boxShadow:  '3px 4px 9.8px rgba(90,85,75,0.57)',
+    },
+    {
+      transform:  'translateY(-4px)',
+      boxShadow:  '6px 10px 24px rgba(90,85,75,0.42)',
+    },
+  ], { duration: 80, easing: 'ease-out', fill: 'forwards' });
+
+  // Run lift animation and data fetch simultaneously
+  await Promise.all([liftAnim.finished, renderCalendar()]);
+  liftAnim.commitStyles();
+  liftAnim.cancel();
+
+  // ── Step 4: Tear upward (520ms) ───────────────────────────────────────────
+  // transform-origin: top center — card bunches near the rings and tears free
+  const tearAnim = snapshot.animate([
+    {
+      offset:    0,
+      transform: 'translateY(-4px) rotate(0deg) skewX(0deg)',
+    },
+    {
+      offset:    0.15,
+      transform: 'translateY(-20px) rotate(-0.8deg) skewX(-0.4deg)',
+      easing:    'ease-in',
+    },
+    {
+      offset:    0.45,
+      transform: 'translateY(-60px) rotate(-2deg) skewX(-1deg)',
+    },
+    {
+      offset:    1,
+      transform: 'translateY(-110vh) rotate(-3deg) skewX(-1.5deg)',
+    },
+  ], {
+    duration: 520,
+    easing:   'cubic-bezier(0.4, 0, 0.2, 1)',
+    fill:     'forwards',
+  });
+
+  // ── Step 5: Reveal new card from behind (starts 120ms into tear = 200ms) ──
+  await delay(120);
+
+  const revealAnim = card.animate([
+    { opacity: '0', transform: 'translateY(20px) scale(0.98)' },
+    { opacity: '1', transform: 'translateY(0)    scale(1)'    },
+  ], {
+    duration: 380,
+    easing:   'ease-out',
+    fill:     'forwards',
+  });
+
+  // ── Step 6: Wait for both tear + reveal to finish ─────────────────────────
+  await Promise.all([tearAnim.finished, revealAnim.finished]);
+
+  // ── Step 7: Cleanup ───────────────────────────────────────────────────────
+  revealAnim.commitStyles();
+  revealAnim.cancel();
+  card.style.opacity   = '';
+  card.style.transform = '';
+  snapshot.remove();
+  app.style.height = ''; // release locked height
+
+  applyScale();      // update zoom for new month dimensions
+  isAnimating = false;
+}
+
+// ─── Navigation button wiring ─────────────────────────────────────────────────
+document.getElementById('prev-month').addEventListener('click', animatePrevMonth);
+document.getElementById('next-month').addEventListener('click', animateNextMonth);
+
+// ─── Backdrop close ───────────────────────────────────────────────────────────
+document.getElementById('backdrop').addEventListener('click', closeSheet);
+
+// ─── Fit entire calendar in one viewport (no scroll) ─────────────────────────
+function applyScale() {
+  const app  = document.getElementById('app');
+  const card = document.getElementById('calendar-card');
+  const cardH = parseInt(card.style.height) || 759;
+
+  const appW = 736;
+  const appH = cardH + 34; // 14px spiral binding above + 20px bottom breath
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const scaleX = (vw - 16) / appW;
+  const scaleY = (vh - 16) / appH;
+  const scale  = Math.min(scaleX, scaleY, 1);
+
+  // zoom scales layout too (no scroll artefacts), supported in all modern browsers
+  app.style.zoom = scale;
+}
+window.addEventListener('resize', applyScale);
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildSpiral();
+renderCalendar();
+</script>
+</body>
+</html>
